@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 from getpass import getpass
+from pprint import pprint
 from urllib.parse import urljoin
 import pandas as pd
 import fileinput
@@ -49,7 +50,7 @@ def create_prior_queries(doc_ids, doc_id_weights,
 
 
 # Hardcoded query here.  Better to use search templates or other query config.
-def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None):
+def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None, use_synonyms=False):
     query_obj = {
         'size': size,
         "sort": [
@@ -65,7 +66,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
                         "should": [  #
                             {
                                 "match": {
-                                    "name": {
+                                    f"{'name.synonyms' if use_synonyms else 'name'}": {
                                         "query": user_query,
                                         "fuzziness": "1",
                                         "prefix_length": 2,
@@ -89,9 +90,16 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
                                     "type": "phrase",
                                     "slop": "6",
                                     "minimum_should_match": "2<75%",
-                                    "fields": ["name^10", "name.hyphens^10", "shortDescription^5",
-                                               "longDescription^5", "department^0.5", "sku", "manufacturer", "features",
-                                               "categoryPath", "name_synonyms"]
+                                    "fields": [f"{'name^10, name.synonyms^10' if use_synonyms else 'name^10'}", 
+                                               "name.hyphens^10",
+                                               "shortDescription^5",
+                                               "longDescription^5", 
+                                               "department^0.5", 
+                                               "sku", 
+                                               "manufacturer", 
+                                               "features",
+                                               "categoryPath", 
+                                               "name_synonyms"]
                                 }
                             },
                             {
@@ -186,12 +194,12 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     return query_obj
 
 
-def search(client, user_query, index="bbuy_products", sort=None, sortDir="desc"):
+def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", use_synonyms=False):
     #### W3: classify the query
     #### W3: create filters and boosts
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"])
-    logging.info(query_obj)
+    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"], use_synonyms=use_synonyms)
+    logger.info(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
@@ -210,6 +218,7 @@ if __name__ == "__main__":
                          help='The OpenSearch host name')
     general.add_argument("-p", '--port', type=int, default=9200,
                          help='The OpenSearch port')
+    general.add_argument("--synonyms", action=argparse.BooleanOptionalAction, default=False, help="Whether to query the product title or synonyms")
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
 
@@ -224,6 +233,8 @@ if __name__ == "__main__":
     if args.user:
         password = getpass()
         auth = (args.user, password)
+
+    use_synonyms = args.synonyms
 
     base_url = "https://{}:{}/".format(host, port)
     opensearch = OpenSearch(
@@ -240,13 +251,28 @@ if __name__ == "__main__":
     )
     index_name = args.index
     query_prompt = "\nEnter your query (type 'Exit' to exit or hit ctrl-c):"
-    print(query_prompt)
-    for line in fileinput.input():
-        query = line.rstrip()
-        if query == "Exit":
+
+    while True:
+        try:
+            query: str = str(input(query_prompt)).rstrip()
+        except KeyboardInterrupt:
             break
-        search(client=opensearch, user_query=query, index=index_name)
+        else:
+            if query.lower() == "exit":
+                break
+            else:
+                search(
+                    client=opensearch,
+                    user_query=query,
+                    index=index_name,
+                    use_synonyms=use_synonyms
+                )
 
-        print(query_prompt)
+    # print(query_prompt)
+    # for line in fileinput.input():
+    #     query = line.rstrip()
+    #     if query == "Exit":
+    #         break
+    #     search(client=opensearch, user_query=query, index=index_name, use_synonyms=use_synonyms)
 
-    
+    #     print(query_prompt)
