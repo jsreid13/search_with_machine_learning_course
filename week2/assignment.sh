@@ -109,3 +109,6 @@ docker cp /workspace/datasets/fasttext/synonyms.csv opensearch-node1:/usr/share/
 # re-index
 ./delete-indexes.sh
 ./index-data.sh -r -p /workspace/search_with_machine_learning_course/week2/conf/bbuy_products.json
+
+# test queries
+python utilities/query.py --synonyms
