@@ -64,6 +64,30 @@ R@3 | 0.481
 P@5 | 0.105
 R@5 | 0.524
 
+1k queries/cat, normalized queries, stemmed
+| Metric | Score |
+|---:|---|
+P@1 | 0.38
+R@1 | 0.38
+--  | --
+P@3 | 0.167
+R@3 | 0.501
+--  | --
+P@5 | 0.11
+R@5 | 0.549
+
+1k queries/cat, normalized queries, stemmed, improved hyperparameters
+| Metric | Score |
+|---:|---|
+P@1 | 0.521
+R@1 | 0.521
+--  | --
+P@3 | 0.223
+R@3 | 0.668
+--  | --
+P@5 | 0.144
+R@5 | 0.722
+
 10k queries/cat, normalized queries, no stem
 | Metric | Score |
 |---:|---|
@@ -90,6 +114,8 @@ R@5 | 0.953
 tv | 10000 | 2143 | abcat0101001 - All Flat-Panel TVs
 phone | 9966 | 478 | pcmcat209400050001 - All Mobile Phones with Plans
 
+Both of these were improved because they returned a very high number of products, including both tv/phones and tv/phone accessories. Now they only return those products themselves, and its up to the user to refine their search.
+
 - Give 2 or 3 examples of queries where filtering hurt the results, either because the classifier was wrong or for some other reason. Again, include the classifier output for those queries.
 
 | Query | # Results w/o category filter | # Results w/ category filter | Classifier output
@@ -97,3 +123,5 @@ phone | 9966 | 478 | pcmcat209400050001 - All Mobile Phones with Plans
 earbuds | 1205 | 0 | cat02015 - Movies & TV Shows
 nespresso | 8 | 0 | cat02015 - Movies & TV Shows
 nintendo | 4568 | 4568 | null
+
+Both earbuds and nespresso were misclassified as movies because of popularity bias in this classifier. Nintendo was a different case where it should be easy to classify, but the classifier for some reason was not confident enough in any category to classify it.
