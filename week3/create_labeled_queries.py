@@ -87,7 +87,7 @@ df = df[df['category'].isin(categories)]
 df['cleaned_query'] = df['query'].apply(lambda query: transform_query(query))
 
 # IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
-df_1000 = agg_queries_by_category(df, parents_dict, min_queries)
+df = agg_queries_by_category(df, parents_dict, min_queries)
 
 # Create labels in fastText format.
 df['label'] = '__label__' + df['category']
