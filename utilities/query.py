@@ -13,11 +13,14 @@ import pandas as pd
 import fileinput
 import logging
 import fasttext
+import nltk
+import re
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
+stemmer = nltk.stem.PorterStemmer()
 
 # expects clicks and impressions to be in the row
 def create_prior_queries_from_group(
@@ -49,6 +52,18 @@ def create_prior_queries(doc_ids, doc_id_weights,
                 pass  # nothing to do in this case, it just means we can't find priors for this doc
     return click_prior_query
 
+def transform_query(query: str, normalize: bool = False, stem: bool = False):
+    if normalize:
+        # Remove all non-alphanumeric characters other than underscore
+        query = re.sub(r'[^\w_ ]', ' ', query)
+        # Trim excess space characters so that tokens are separated by a single space.
+        query = re.sub(r'\s+', ' ', query)
+        # Convert all letters to lowercase and remove surround whitespace
+        query = query.lower().strip()
+    # Stem
+    if stem:
+        query = ' '.join([stemmer.stem(word) for word in query.split()])
+    return query
 
 # Hardcoded query here.  Better to use search templates or other query config.
 def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None, use_synonyms=False):
@@ -216,7 +231,7 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
-        print(json.dumps(response, indent=2))
+        # print(json.dumps(response, indent=2))
 
 
 if __name__ == "__main__":
@@ -231,11 +246,18 @@ if __name__ == "__main__":
                          help='The OpenSearch host name')
     general.add_argument("-p", '--port', type=int, default=9200,
                          help='The OpenSearch port')
-    general.add_argument("--synonyms", action=argparse.BooleanOptionalAction, default=False, help="Whether to query the product title or synonyms")
-    general.add_argument("--category_filter", action=argparse.BooleanOptionalAction, default=False, help="Whether to fitler results to one category")
+    general.add_argument("--synonyms", action=argparse.BooleanOptionalAction,
+                         default=False, help="Whether to query the product title or synonyms")
+    general.add_argument("--category_filter", action=argparse.BooleanOptionalAction,
+                         default=False, help="Whether to fitler results to one category")
     general.add_argument('--user',
-                         help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
-    general.add_argument("--model_path", default="/workspace/datasets/fasttext/bbuy_query_cat_clf_model.bin",  help="The path to the model")
+                         help='The OpenSearch admin. If this is set, the program will prompt for password too. If not set, use default of admin/admin')
+    general.add_argument("--model_path", default="/workspace/datasets/fasttext/bbuy_query_stemmed_cat_clf_improved_model_1k.bin",
+                         help="The path to the model")
+    general.add_argument("--normalize", action=argparse.BooleanOptionalAction,
+                    help="Normalize the product names by stripping symbols, applying lowercase and stemming")
+    general.add_argument("--stem", action=argparse.BooleanOptionalAction,
+                    help="Apply the Snowball stemmer to the queries")
 
     args = parser.parse_args()
 
@@ -281,7 +303,7 @@ if __name__ == "__main__":
             if query.lower() == "exit":
                 break
             else:
-                top_cat, score = model.predict(query)
+                top_cat, score = model.predict(transform_query(query, args.normalize, args.stem))
                 if score[0] < 0.4 or not args.category_filter:
                     top_cat = False
                 else:

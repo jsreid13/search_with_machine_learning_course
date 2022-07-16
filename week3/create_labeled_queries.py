@@ -5,21 +5,22 @@ import pandas as pd
 import numpy as np
 import csv
 import re
+from tqdm import tqdm
 
 # Useful if you want to perform stemming.
 import nltk
 stemmer = nltk.stem.PorterStemmer()
 
-def transform_query(query: str):
-    if args.normalize:
+def transform_query(query: str, normalize: bool = False, stem: bool = False):
+    if normalize:
         # Remove all non-alphanumeric characters other than underscore
         query = re.sub(r'[^\w_ ]', ' ', query)
         # Trim excess space characters so that tokens are separated by a single space.
-        query = re.sub(r'\s{2,}', ' ', query)
+        query = re.sub(r'\s+', ' ', query)
         # Convert all letters to lowercase and remove surround whitespace
         query = query.lower().strip()
     # Stem
-    if args.stem:
+    if stem:
         query = ' '.join([stemmer.stem(word) for word in query.split()])
     return query
 
@@ -49,8 +50,10 @@ parser = argparse.ArgumentParser(description='Process arguments.')
 general = parser.add_argument_group("general")
 general.add_argument("--min_queries", default=1,  help="The minimum number of queries per category label (default is 1)")
 general.add_argument("--output", default=output_file_name, help="the file to output to")
-general.add_argument("--normalize", action=argparse.BooleanOptionalAction,  help="Normalize the product names by stripping symbols, applying lowercase and stemming")
-general.add_argument("--stem", action=argparse.BooleanOptionalAction,  help="Apply the Snowball stemmer to the queries")
+general.add_argument("--normalize", action=argparse.BooleanOptionalAction,
+                    help="Normalize the product names by stripping symbols, applying lowercase and stemming")
+general.add_argument("--stem", action=argparse.BooleanOptionalAction,
+                    help="Apply the Snowball stemmer to the queries")
 
 args = parser.parse_args()
 output_file_name = args.output
@@ -76,7 +79,7 @@ for child in root:
         categories.append(leaf_id)
         parents.append(cat_path_ids[-2])
 
-parents_df = pd.DataFrame(list(zip(categories, parents)), columns =['category', 'parent'])
+parents_df = pd.DataFrame(list(zip(categories, parents)), columns = ['category', 'parent'])
 parents_dict = dict(zip(parents, categories))
 
 # Read the training data into pandas, only keeping queries with non-root categories in our category tree.
@@ -84,7 +87,7 @@ df = pd.read_csv(queries_file_name)[['category', 'query']]
 df = df[df['category'].isin(categories)]
 
 # IMPLEMENT ME: Convert queries to lowercase, and optionally implement other normalization, like stemming.
-df['cleaned_query'] = df['query'].apply(lambda query: transform_query(query))
+df['cleaned_query'] = df['query'].apply(lambda query: transform_query(query, args.normalize, args.stem))
 
 # IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
 df = agg_queries_by_category(df, parents_dict, min_queries)
