@@ -1,0 +1,87 @@
+PUT my-index
+{
+  "settings": {
+    "index.knn": true
+  },
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "knn_vector",
+        "dimension": 2
+      }
+    }
+  }
+}
+
+POST _bulk
+{ "index": { "_index": "my-index", "_id": "1" } }
+{ "my_vector": [1.5, 2.5] }
+{ "index": { "_index": "my-index", "_id": "2" } }
+{ "my_vector": [2.5, 3.5] }
+{ "index": { "_index": "my-index", "_id": "3" } }
+{ "my_vector": [3.5, 4.5] }
+{ "index": { "_index": "my-index", "_id": "4" } }
+{ "my_vector": [5.5, 6.5] }
+{ "index": { "_index": "my-index", "_id": "5" } }
+{ "my_vector": [4.5, 5.5] }
+{ "index": { "_index": "my-index", "_id": "6" } }
+
+GET my-index/_search
+{
+  "size": 3,
+  "query": {
+    "knn": {
+      "my_vector": {
+        "vector": [3.4, 4.6],
+        "k": 3
+      }
+    }
+  }
+}
+
+DELETE my-index
+
+PUT my-index
+{
+  "settings": {
+    "index.knn": true
+  },
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "knn_vector",
+        "dimension": 2,
+        "method": {
+            "name": "hnsw",
+            "space_type": "cosinesimil"
+        }
+      }
+    }
+  }
+}
+
+POST _bulk
+{ "index": { "_index": "my-index", "_id": "1" } }
+{ "my_vector": [1.5, 2.5] }
+{ "index": { "_index": "my-index", "_id": "2" } }
+{ "my_vector": [2.5, 3.5] }
+{ "index": { "_index": "my-index", "_id": "3" } }
+{ "my_vector": [3.5, 4.5] }
+{ "index": { "_index": "my-index", "_id": "4" } }
+{ "my_vector": [5.5, 6.5] }
+{ "index": { "_index": "my-index", "_id": "5" } }
+{ "my_vector": [4.5, 5.5] }
+{ "index": { "_index": "my-index", "_id": "6" } }
+
+GET my-index/_search
+{
+  "size": 3,
+  "query": {
+    "knn": {
+      "my_vector": {
+        "vector": [3.4, 4.6],
+        "k": 3
+      }
+    }
+  }
+}
