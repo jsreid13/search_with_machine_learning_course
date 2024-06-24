@@ -15,6 +15,7 @@ import logging
 import fasttext
 import nltk
 import re
+from sentence_transformers import SentenceTransformer
 
 
 logger = logging.getLogger(__name__)
@@ -195,7 +196,8 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     if click_prior_query is not None and click_prior_query != "":
         query_obj["query"]["function_score"]["query"]["bool"]["should"].append({
             "query_string": {
-                # This may feel like cheating, but it's really not, esp. in ecommerce where you have all this prior data,  You just can't let the test clicks leak in, which is why we split on date
+                # This may feel like cheating, but it's really not, esp. in ecommerce where you have all this prior data,
+                # You just can't let the test clicks leak in, which is why we split on date
                 "query": click_prior_query,
                 "fields": ["_id"]
             }
@@ -210,9 +212,27 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
         query_obj["_source"] = source
     return query_obj
 
+def create_vector_query(user_query, transformer_model, sort="_score", sortDir="desc", size=10):
+    query_embedding = transformer_model.encode([user_query])
+
+    query_obj = {
+        "size": size,
+        "sort": [
+            {sort: {"order": sortDir}}
+        ],
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": query_embedding[0].tolist(),
+                    "k": size
+                }
+            }
+        }
+    }
+    return query_obj
 
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", use_synonyms=False, category=False):
+def search(client, user_query, transformer_model=None, index="bbuy_products", sort="_score", sortDir="desc", use_synonyms=False, category=False, vector_search=False):
     #### W3: classify the query
     #### W3: create filters and boosts
     # Note: you may also want to modify the `create_query` method above
@@ -220,13 +240,16 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
     if category:
         query_filter = {"match": {"categoryPathIds": category}}
         
-    query_obj = create_query(user_query,
-        click_prior_query=None,
-        filters=query_filter,
-        sort=sort,
-        sortDir=sortDir,
-        source=["name", "shortDescription"],
-        use_synonyms=use_synonyms)
+    if vector_search:
+        query_obj = create_vector_query(user_query, transformer_model)
+    else:
+        query_obj = create_query(user_query,
+            click_prior_query=None,
+            filters=query_filter,
+            sort=sort,
+            sortDir=sortDir,
+            source=["name", "shortDescription"],
+            use_synonyms=use_synonyms)
     logger.info(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
@@ -258,6 +281,8 @@ if __name__ == "__main__":
                     help="Normalize the product names by stripping symbols, applying lowercase and stemming")
     general.add_argument("--stem", action=argparse.BooleanOptionalAction,
                     help="Apply the Snowball stemmer to the queries")
+    general.add_argument("--vector", action=argparse.BooleanOptionalAction,
+                    help="Perform vector search")
 
     args = parser.parse_args()
 
@@ -290,6 +315,7 @@ if __name__ == "__main__":
     index_name = args.index
 
     model = fasttext.load_model(model_path)
+    query_model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
 
     query_prompt = "\nEnter your query (type 'Exit' to exit or hit ctrl-c):"
@@ -309,13 +335,15 @@ if __name__ == "__main__":
                 else:
                     print(top_cat, score)
                     top_cat = top_cat[0].replace('__label__', '')
-
+                
                 search(
                     client=opensearch,
                     user_query=query,
                     index=index_name,
                     use_synonyms=use_synonyms,
-                    category=top_cat
+                    category=top_cat,
+                    transformer_model=query_model,
+                    vector_search=args.vector
                 )
 
     # print(query_prompt)

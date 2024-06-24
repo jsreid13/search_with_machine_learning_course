@@ -14,7 +14,7 @@ from pathlib import Path
 import requests
 import json
 
-### W4: S1: Import the sentence transformer library.  Note: you may need to pip install it as we've noticed it doesn't always get installed properly despite being in our requirements.txt
+### W4: S1: Import the sentence transformer library
 
 from time import perf_counter
 import concurrent.futures
@@ -129,7 +129,6 @@ def index_file(file, index_name, reduced=False):
             continue
         ### W4: S2: Encode the names
         docs.append({'_index': index_name, '_id':doc['sku'][0], '_source' : doc})
-        #docs.append({'_index': index_name, '_source': doc})
         docs_indexed += 1
         if docs_indexed % 200 == 0:
             bulk(client, docs, request_timeout=60)
